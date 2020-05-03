@@ -1,5 +1,5 @@
 #!/bin/bash
-OUT_DIR="data_02132020/done/"
+#OUT_DIR="data_02202020/done/"
 FILE_DIR="${1}/*"
 for f in $FILE_DIR
 do
@@ -11,5 +11,5 @@ do
   fi
 done
 
-mv $1 $OUT_DIR
+#mv $1 $OUT_DIR
 

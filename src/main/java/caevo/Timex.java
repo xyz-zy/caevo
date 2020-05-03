@@ -104,8 +104,9 @@ public class Timex {
    * 
    * @param timex
    */
-  public Timex(String val) {
-    this.value = val;
+  public Timex(String date) {
+    this.value = date;
+    this.type = Type.DATE;
   }
 
   public Timex(org.jdom.Element el) {

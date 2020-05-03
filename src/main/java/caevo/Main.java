@@ -16,7 +16,7 @@ import java.util.Set;
 import caevo.sieves.Sieve;
 import caevo.tlink.TLink;
 import caevo.tlink.TimeTimeLink;
-import caevo.util.DCTHeursitics;
+import caevo.util.DCTHeuristics;
 import caevo.util.Directory;
 import caevo.util.Ling;
 import caevo.util.SieveStats;
@@ -102,6 +102,7 @@ public class Main {
           force24hrDCT);
       dctHeuristic = CaevoProperties.getString("Main.dctHeuristic",
           dctHeuristic);
+      System.out.println(dctHeuristic);
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -778,17 +779,28 @@ public class Main {
   }
 
   public void markupAll(SieveDocuments docs) {
+    System.out.println("markupAll");
     markupEvents(docs);
     markupTimexes(docs);
     // Try to determine DCT based on relevant property settings
     // TODO: use reflection method parallel to how sieves are chosen to choose
     // the right DCTHeuristic method
-    if (dctHeuristic == "setFirstDateAsDCT") {
+    System.out.println("DCT Heuristic: " + dctHeuristic);
+    if (dctHeuristic.equals("setFirstDateAsDCT")) {
       for (SieveDocument doc : docs.getDocuments()) {
-        DCTHeursitics.setFirstDateAsDCT(doc);
+        DCTHeuristics.setFirstDateAsDCT(doc);
         ; // only if there isn't already a DCT specified!
       }
     }
+    if (dctHeuristic.equals("setDCTFromDocname")) {
+      System.out.println("Attempting to parse DCT from filenames");
+      for (SieveDocument doc : docs.getDocuments()) {
+        // TODO: Refactor this to a method in DCTHeuristics.java
+        System.out.println("Parsing DCT in YYYYMMDD format from filename " + doc.getDocname());
+        DCTHeuristics.setDCTFromDocname(doc);
+      }
+    }
+    System.out.println("Running sieves.");
     runSieves(docs);
   }
 

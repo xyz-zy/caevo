@@ -7,6 +7,8 @@ import java.util.GregorianCalendar;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Calendar;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import caevo.SieveDocument;
 import caevo.Timex;
@@ -21,7 +23,7 @@ import caevo.Timex.DocumentFunction;
  *
  */
 
-public class DCTHeursitics {
+public class DCTHeuristics {
 
   /**
    * NOT YET TESTED
@@ -110,6 +112,23 @@ public class DCTHeursitics {
           break;
         }
       }
+    }
+  }
+
+  public static void setDCTFromDocname(SieveDocument doc) {
+    System.out.println("Parsing DCT in YYYYMMDD format from filename " + doc.getDocname());
+    Pattern p = Pattern.compile(".*\\D*(\\d{4})(\\d{2})(\\d{2})\\D*.*");
+    Matcher m = p.matcher((CharSequence) doc.getDocname());
+    if (m.matches()) {
+      String year = m.group(1);
+      String month = m.group(2);
+      String day = m.group(3);
+      String date = year + "-" + month + "-" + day;
+      System.out.format("Parsed DCT as %s\n", date);
+      Timex dct = new Timex(date);
+      dct.setDocumentFunction(DocumentFunction.CREATION_TIME);
+      dct.setTid("t0");
+      doc.addCreationTime(dct);
     }
   }
 

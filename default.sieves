@@ -1,17 +1,17 @@
 AdjacentVerbTimex
 TimeTimeSieve
-RepEventGovEvent
-ReichenbachDG13
-XCompDepSieve
-WordNet209
-RepCreationDay
+//RepEventGovEvent
+//ReichenbachDG13
+//XCompDepSieve
+//WordNet209
+//RepCreationDay
 
-MLEventTimeSameSent
-MLEventEventDominates
-MLEventEventSameSent  
-MLEventDCT
+//MLEventTimeSameSent
+//MLEventEventDominates
+//MLEventEventSameSent  
+//MLEventDCT
 
-AllVagueSieve
+//AllVagueSieve
 
 
 //EventCreationTimeSieve // Drops a bunch on Dev
