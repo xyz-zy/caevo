@@ -1,5 +1,5 @@
 #!/bin/bash
-#OUT_DIR="data_02202020/done/"
+#OUT_DIR="data_00apw_dct/done/"
 FILE_DIR="${1}/*"
 for f in $FILE_DIR
 do

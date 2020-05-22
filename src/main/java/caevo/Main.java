@@ -60,6 +60,7 @@ public class Main {
 
   private TextEventClassifier eventClassifier;
   private TimexClassifier timexClassifier;
+  private Sieve[] sieves;
   public static WordNet wordnet;
 
   SieveDocuments thedocs = null;
@@ -231,6 +232,92 @@ public class Main {
    */
   public void runSieves() {
     runSieves(thedocs);
+  }
+
+  /**
+   * Run the sieve pipeline on the given document.
+   */
+  public void runSieves(SieveDocument doc) {
+    // Remove TLinks because we will add our own.
+    doc.removeTlinks();
+
+    // Start with zero links.
+    List<TLink> currentTLinks = new ArrayList<TLink>();
+    Map<String, TLink> currentTLinksHash = new HashMap<String, TLink>();
+
+    // Create all the sieves first.
+    if (sieves == null) {
+      sieves = createAllSieves(sieveClasses);
+    }
+
+    // Statistics collection.
+    SieveStats stats[] = new SieveStats[sieveClasses.length];
+    Map<String, SieveStats> sieveNameToStats = new HashMap<String, SieveStats>();
+    for (int i = 0; i < sieveClasses.length; i++) {
+      stats[i] = new SieveStats(sieveClasses[i]);
+      sieveNameToStats.put(sieveClasses[i], stats[i]);
+    }
+
+    // Data
+    // SieveDocuments docs = getDataset(dataset, thedocs);
+
+    // Do each file independently.
+    System.out.println("Processing " + doc.getDocname() + "...");
+    // System.out.println("Number of gold links: " +
+    // thedocsUnchanged.getDocument(doc.getDocname()).getTlinks().size());
+
+    // Loop over the sieves in order.
+    for (int xx = 0; xx < sieves.length; xx++) {
+      Sieve sieve = sieves[xx];
+      if (sieve == null)
+        continue;
+      System.out.println("\tSieve " + sieve.getClass().toString());
+
+      // Run this sieve
+      List<TLink> newLinks = sieve.annotate(doc, currentTLinks);
+      if (debug)
+        System.out.println("\t\t" + newLinks.size() + " new links.");
+      // if( debug ) System.out.println("\t\t" + newLinks);
+      stats[xx].addProposedCount(newLinks.size());
+
+      // Verify the links as non-conflicting.
+      int numRemoved = removeConflicts(currentTLinksHash, newLinks);
+      if (debug)
+        System.out.println("\t\tRemoved " + numRemoved + " proposed links.");
+      // if( debug ) System.out.println("\t\t" + newLinks);
+      stats[xx].addRemovedCount(numRemoved);
+
+      if (newLinks.size() > 0) {
+        // Add the good links to our current list.
+        addProposedToCurrentList(sieveClasses[xx], newLinks, currentTLinks,
+            currentTLinksHash);// currentTLinks.addAll(newLinks);
+
+        // Run Closure
+        if (useClosure) {
+          List<TLink> closedLinks = closureExpand(sieveClasses[xx],
+              currentTLinks, currentTLinksHash);
+          if (debug)
+            System.out.println(
+                "\t\tClosure produced " + closedLinks.size() + " links.");
+          // if( debug ) System.out.println("\t\tclosed=" + closedLinks);
+          stats[xx].addClosureCount(closedLinks.size());
+        }
+      }
+      if (debug)
+        System.out
+            .println("\t\tDoc now has " + currentTLinks.size() + " links.");
+    }
+
+    // Add links to InfoFile.
+    doc.addTlinks(currentTLinks);
+    // if( debug ) System.out.println("Adding links: " + currentTLinks);
+
+    //System.out.println("Writing output: " + outpath);
+    //doc.writeToXML(new File(outpath));
+
+    // Evaluate it if the input file had tlinks in it.
+    //if (thedocsUnchanged != null )
+    //  Evaluate.evaluate(thedocsUnchanged, docs, sieveClasses, sieveNameToStats);
   }
 
   /**
@@ -741,18 +828,21 @@ public class Main {
     }
     TreebankLanguagePack tlp = new PennTreebankLanguagePack();
     GrammaticalStructureFactory gsf = tlp.grammaticalStructureFactory();
-
+    System.out.println("Recieved path " + path);
     // If a directory: parse a directory of XML files.
     if (Directory.isDirectory(path)) {
+      System.out.println("Recieved directory as path");
       for (String file : Directory.getFilesSorted(path)) {
         String subpath = path + File.separator + file;
         SieveDocument doc = Tempeval3Parser.rawTextFileToParsed(subpath, parser,
             gsf);
+        System.out.println("Got sentences: " + doc.getSentences().size());
         docs.addDocument(doc);
       }
     }
     // If a single file: parse it.
     else {
+      System.out.println("Recieved single file as path");
       SieveDocument doc = Tempeval3Parser.rawTextFileToParsed(path, parser,
           gsf);
       docs.addDocument(doc);
@@ -763,19 +853,110 @@ public class Main {
 
     // Output the InfoFile with the events in it.
     String outpath = path + ".info.xml";
-    if (Directory.isDirectory(path))
-      outpath = Directory.lastSubdirectory(path) + "-dir.info.xml";
-    docs.writeToXML(outpath);
-    System.out.println("Created " + outpath);
+    if (Directory.isDirectory(path)) {
+      for (SieveDocument doc : docs.getDocuments()) {
+        String docname = doc.getDocname();
+        System.out.println("doc found:" + docname);
+        outpath = path + docname + ".info.xml";
+        doc.writeToXML(outpath);	
+        System.out.println("Created " + outpath);
+      }
+    } else { 
+      docs.writeToXML(outpath);
+      System.out.println("Created " + outpath);
+    }
 
     return docs;
   }
+
+  public SieveDocuments markupRawTextWrapper(String path) {
+    SieveDocuments docs = new SieveDocuments();
+
+    // Initialize the parser.
+    LexicalizedParser parser = Ling.createParser(serializedGrammar);
+    if (parser == null) {
+      System.out.println("Failed to create parser from " + serializedGrammar);
+      System.exit(1);
+    }
+    TreebankLanguagePack tlp = new PennTreebankLanguagePack();
+    GrammaticalStructureFactory gsf = tlp.grammaticalStructureFactory();
+
+    // If a directory: parse a directory of XML files.
+    if (Directory.isDirectory(path)) {
+      System.out.println("found directory");
+      for (String file : Directory.getFilesSorted(path)) {
+        if (file.endsWith(".xml")) {
+          continue;
+        }
+        String subpath = path + File.separator + file;
+        if ((new File(subpath + ".info.xml")).exists()) {
+          continue;
+        }
+        try {
+          SieveDocument doc = markupRawTextSingle(subpath, parser, tlp, gsf);
+          //docs.addDocument(doc);
+        } catch (Exception e) {
+          e.printStackTrace();
+          System.err.println("Failed to parse file " + subpath);
+        }
+      }
+    }
+    // If a single file: parse it.
+    else {
+      SieveDocument doc = markupRawTextSingle(path, parser, tlp, gsf);
+      //docs.addDocument(doc);
+    }
+
+    return docs;
+  }
+
+
+  /* assume is single doc */
+  public SieveDocument markupRawTextSingle(String path,
+      LexicalizedParser parser, TreebankLanguagePack tlp, 
+      GrammaticalStructureFactory gsf) {
+    SieveDocument doc = Tempeval3Parser.rawTextFileToParsed(path, parser,
+        gsf);
+
+    // Markup events, times, and tlinks.
+    markupAll(doc);
+
+    // Output the InfoFile with the events in it.
+    String outpath = path + ".info.xml";
+    doc.writeToXML(outpath);
+    System.out.println("Created " + outpath);
+
+    return doc;
+  }
+
 
   /**
    * Assumes the InfoFile has its text parsed.
    */
   public void markupAll() {
     markupAll(thedocs);
+  }
+
+  public void markupAll(SieveDocument doc) {
+    System.out.println("markupAll with one doc");
+    markupEvents(doc);
+    markupTimexes(doc);
+    // Try to determine DCT based on relevant property settings
+    // TODO: use reflection method parallel to how sieves are chosen to choose
+    // the right DCTHeuristic method
+    System.out.println("DCT Heuristic: " + dctHeuristic);
+    if (dctHeuristic.equals("setFirstDateAsDCT")) {
+      DCTHeuristics.setFirstDateAsDCT(doc);
+      ; // only if there isn't already a DCT specified!
+    }
+    if (dctHeuristic.equals("setDCTFromDocname")) {
+      System.out.println("Attempting to parse DCT from filenames");
+      // TODO: Refactor this to a method in DCTHeuristics.java
+      System.out.println("Parsing DCT in YYYYMMDD format from filename " + doc.getDocname());
+      DCTHeuristics.setDCTFromDocname(doc);
+    }
+    System.out.println("Running sieves.");
+    runSieves(doc);
   }
 
   public void markupAll(SieveDocuments docs) {
@@ -805,6 +986,17 @@ public class Main {
   }
 
   /**
+   * Assumes the SieveDocument has its text parsed.
+   */
+  public void markupEvents(SieveDocument doc) {
+    if (eventClassifier == null) {
+      eventClassifier = new TextEventClassifier();
+      eventClassifier.loadClassifiers();
+    }
+    eventClassifier.extractEventsFromDocument(doc);
+  }
+
+  /**
    * Assumes the SieveDocuments has its text parsed.
    */
   public void markupEvents(SieveDocuments info) {
@@ -829,6 +1021,15 @@ public class Main {
 
     System.out.println("Writing output: " + outpath);
     info.writeToXML(new File(outpath));
+  }
+
+  /**
+   * Assumes the SieveDocument has its text parsed.
+   */
+  public void markupTimexes(SieveDocument doc) {
+    if (timexClassifier == null)
+      timexClassifier = new TimexClassifier();
+    timexClassifier.markupTimex3(doc);
   }
 
   /**
@@ -898,7 +1099,7 @@ public class Main {
     // Give a text file or a directory of text files. Parses and marks it up.
     else if (args.length > 1 && args[args.length - 1].equalsIgnoreCase("raw")) {
       main.dataset = DatasetType.ALL;
-      main.markupRawText(args[args.length - 2]);
+      main.markupRawTextWrapper(args[args.length - 2]);
     }
 
     // Give an XML file or a directory of text files. Parses and marks it up.

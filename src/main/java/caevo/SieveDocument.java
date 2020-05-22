@@ -2,7 +2,9 @@ package caevo;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,8 +14,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 
+import org.jdom.Document;
 import org.jdom.Element;
 import org.jdom.Namespace;
+import org.jdom.output.Format;
+import org.jdom.output.XMLOutputter;
 
 import caevo.Timex.DocumentFunction;
 import caevo.tlink.EventEventLink;
@@ -522,21 +527,52 @@ public class SieveDocument {
     // Find the file's Element
     Element mainfile = new Element(SieveDocuments.FILE_ELEM, ns);
     mainfile.setAttribute(SieveDocuments.FILENAME_ELEM, docname);
-
-    if (sentences != null)
+    System.out.println("SieveDocument.toXML()");
+    if (sentences != null) {
       for (SieveSentence sent : sentences)
         mainfile.addContent(sent.toXML());
-
+      System.out.println("contains sentences");
+    }
     // Check for duplicates as we add
-    if (tlinks != null)
+    if (tlinks != null) {
       for (TLink tlink : tlinks)
         mainfile.addContent(tlink.toElement(ns));
+      System.out.println("contains tlinks");
+    }
 
-    if (dcts != null)
+    if (dcts != null) {
       for (Timex dct : dcts)
         mainfile.addContent(dct.toElement(ns));
-
+    }
     return mainfile;
+  }
+
+  public Document toXMLDocument() {
+    Namespace ns = Namespace.getNamespace("http://chambers.com/corpusinfo");
+    Document jdomDoc = new Document();
+    Element root = new Element("root", ns);
+    jdomDoc.setRootElement(root);
+
+    root.addContent(toXML());
+
+    return jdomDoc;
+  }
+
+  public void writeToXML(String path) {
+    writeToXML(new File(path));
+  }
+
+  public void writeToXML(File file) {
+    try {
+      FileOutputStream out = new FileOutputStream(file);
+      XMLOutputter op = new XMLOutputter(Format.getPrettyFormat());
+      Document jdomDoc = toXMLDocument();
+      op.output(jdomDoc, out);
+      out.flush();
+      out.close();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 
   /**

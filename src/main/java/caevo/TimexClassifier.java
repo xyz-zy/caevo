@@ -35,6 +35,9 @@ public class TimexClassifier {
 
   AnnotationPipeline timexPipeline = null;
   SieveDocuments thedocs;
+  
+  public TimexClassifier() {
+  }
 
   public TimexClassifier(SieveDocuments docs) {
     this.thedocs = docs;
@@ -91,42 +94,47 @@ public class TimexClassifier {
    */
   public void markupTimex3() {
     for (SieveDocument doc : thedocs.getDocuments()) {
-      if (debug)
-        System.out.println("doc = " + doc.getDocname());
-      List<SieveSentence> sentences = doc.getSentences();
-      List<Timex> dcts = doc.getDocstamp();
-      if (dcts != null && dcts.size() > 1) {
-        System.out.println("markupTimex3 dct size is " + dcts.size());
-        System.exit(1);
-      }
-      String docDate = (dcts != null && dcts.size() > 0)
-          ? dcts.get(0).getValue() : null;
-      if (debug)
-        System.out.println("markupTimex3 docDate = " + docDate);
-      // System.out.println(sentences.size() + " sentences.");
-      int tid = 1;
-
-      // Loop over each sentence and get TLinks.
-      int sid = 0;
-      for (SieveSentence sent : sentences) {
-
-        // List<CoreLabel> theTokens = preprocessTokens(sent.tokens());
-
-        System.out
-            .println("TimexClassifier markupTimex3 tokens = " + sent.tokens());
-        List<Timex> stanfordTimex = markupTimex3(sent.tokens(), tid, docDate);
-        myRevisedTimex3(stanfordTimex, docDate);
-        tid += stanfordTimex.size();
-
-        // Remove any TIMEX phrases that contain EVENT objects.
-        removeConflictingTimexesWithEvents(stanfordTimex, sent);
-
-        // System.out.println("GOT " + stanfordTimex.size() + " new timexes.");
-        doc.addTimexes(sid, stanfordTimex);
-        sid++;
-      }
+      markupTimex3(doc);
     }
   }
+
+  public void markupTimex3(SieveDocument doc) {
+    if (debug)
+      System.out.println("doc = " + doc.getDocname());
+    List<SieveSentence> sentences = doc.getSentences();
+    List<Timex> dcts = doc.getDocstamp();
+    if (dcts != null && dcts.size() > 1) {
+      System.out.println("markupTimex3 dct size is " + dcts.size());
+      System.exit(1);
+    }
+    String docDate = (dcts != null && dcts.size() > 0)
+        ? dcts.get(0).getValue() : null;
+    if (debug)
+    System.out.println("markupTimex3 docDate = " + docDate);
+    // System.out.println(sentences.size() + " sentences.");
+    int tid = 1;
+
+    // Loop over each sentence and get TLinks.
+    int sid = 0;
+    for (SieveSentence sent : sentences) {
+
+      // List<CoreLabel> theTokens = preprocessTokens(sent.tokens());
+
+      System.out
+          .println("TimexClassifier markupTimex3 tokens = " + sent.tokens());
+      List<Timex> stanfordTimex = markupTimex3(sent.tokens(), tid, docDate);
+      myRevisedTimex3(stanfordTimex, docDate);
+      tid += stanfordTimex.size();
+
+      // Remove any TIMEX phrases that contain EVENT objects.
+      removeConflictingTimexesWithEvents(stanfordTimex, sent);
+
+      // System.out.println("GOT " + stanfordTimex.size() + " new timexes.");
+      doc.addTimexes(sid, stanfordTimex);
+      sid++;
+    }
+  }
+
 
   private void myRevisedTimex3(List<Timex> timexes, String docDate) {
     if (docDate != null) {

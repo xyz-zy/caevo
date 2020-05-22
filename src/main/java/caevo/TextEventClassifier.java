@@ -93,6 +93,14 @@ public class TextEventClassifier {
     loadWordNet();
   }
 
+  public TextEventClassifier() {
+    loadWordNet();
+  }
+/*
+  public TextEventClassifier(Wordnet wordnet) {
+    this.wordnet = wordnet;
+  }
+*/
   public TextEventClassifier(SieveDocuments docs) {
     this.docs = docs;
     loadWordNet();
@@ -476,76 +484,91 @@ public class TextEventClassifier {
   public void extractEvents(SieveDocuments docs, Collection<String> docnames,
       boolean useDeterministic) {
     for (SieveDocument doc : docs.getDocuments()) {
-      if (docnames == null || docnames.contains(doc.getDocname())) {
-        System.out.println("doc = " + doc.getDocname());
-        List<SieveSentence> sentences = doc.getSentences();
-        int eventi = 1;
-        System.out.println(sentences.size() + " sentences.");
+      extractEventsFromDocument(doc, docnames, useDeterministic);
+    }
+  }
 
-        // Build the typed dependencies.
-        List<List<TypedDependency>> alldeps = doc.getAllDependencies();
+  public void extractEventsFromDocument(SieveDocument doc) {
+    if (!ruleBased) {
+      System.out.println("*** Classifier-Based Event Extraction ***");
+      extractEventsFromDocument(doc, null, false);
+    } else {
+      System.out.println("*** Deterministic Event Extraction ***");
+      extractEventsFromDocument(doc, null, true);
+    }
+  }
 
-        // Each sentence.
-        int sid = 0;
-        for (SieveSentence sent : sentences) {
-          Tree tree = sent.getParseTree();
-          List<TextEvent> newevents = new ArrayList<TextEvent>();
-          Set<Integer> timexIndices = indicesCoveredByTimexes(sent.timexes());
+  public void extractEventsFromDocument(SieveDocument doc,
+      Collection<String> docnames, boolean useDeterministic) {  
+    if (docnames == null || docnames.contains(doc.getDocname())) {
+      System.out.println("doc = " + doc.getDocname());
+      List<SieveSentence> sentences = doc.getSentences();
+      int eventi = 1;
+      System.out.println(sentences.size() + " sentences.");
 
-          if (tree != null && tree.size() > 1) {
-            // Each token.
-            int wordi = 1; // first word is index 1
-            for (CoreLabel token : sent.tokens()) {
+      // Build the typed dependencies.
+      List<List<TypedDependency>> alldeps = doc.getAllDependencies();
 
-              // Skip tokens that are already tagged by a timex.
-              if (!timexIndices.contains(wordi)) {
+      // Each sentence.
+      int sid = 0;
+      for (SieveSentence sent : sentences) {
+        Tree tree = sent.getParseTree();
+        List<TextEvent> newevents = new ArrayList<TextEvent>();
+        Set<Integer> timexIndices = indicesCoveredByTimexes(sent.timexes());
 
-                if (useDeterministic
-                    && isEventDeterministic(tree, sent.tokens(), wordi)) {
-                  String tokenStr = token
-                      .getString(CoreAnnotations.OriginalTextAnnotation.class);
-                  TextEvent event = new TextEvent(tokenStr, "e" + eventi, sid,
-                      wordi);
-                  event.addEiid("ei" + eventi);
-                  newevents.add(event);
-                  // System.out.println("Created event: " + event);
-                  eventi++;
-                }
+        if (tree != null && tree.size() > 1) {
+          // Each token.
+          int wordi = 1; // first word is index 1
+          for (CoreLabel token : sent.tokens()) {
 
-                if (!useDeterministic && isEvent(eventClassifier, sent, tree,
-                    alldeps.get(sid), wordi)) {
-                  String tokenStr = token
-                      .getString(CoreAnnotations.OriginalTextAnnotation.class);
-                  TextEvent event = new TextEvent(tokenStr, "e" + eventi, sid,
-                      wordi);
-                  event.addEiid("ei" + eventi);
+            // Skip tokens that are already tagged by a timex.
+            if (!timexIndices.contains(wordi)) {
 
-                  // Set the event attributes.
-                  RVFDatum<String, String> datum = wordToDatum(sent, tree,
-                      alldeps.get(sid), wordi);
-                  // System.out.println("datum: " + datum);
-                  // System.out.println("\taspect: " +
-                  // aspectClassifier.classOf(datum));
-                  event.setTense(
-                      TextEvent.Tense.valueOf(tenseClassifier.classOf(datum)));
-                  event.setAspect(TextEvent.Aspect
-                      .valueOf(aspectClassifier.classOf(datum)));
-                  event.setTheClass(
-                      TextEvent.Class.valueOf(classClassifier.classOf(datum)));
-
-                  newevents.add(event);
-                  // System.out.println("Created event: " + event);
-                  eventi++;
-                }
+              if (useDeterministic
+                  && isEventDeterministic(tree, sent.tokens(), wordi)) {
+                String tokenStr = token
+                    .getString(CoreAnnotations.OriginalTextAnnotation.class);
+                TextEvent event = new TextEvent(tokenStr, "e" + eventi, sid,
+                    wordi);
+                event.addEiid("ei" + eventi);
+                newevents.add(event);
+                // System.out.println("Created event: " + event);
+                eventi++;
               }
-              wordi++;
+
+              if (!useDeterministic && isEvent(eventClassifier, sent, tree,
+                  alldeps.get(sid), wordi)) {
+                String tokenStr = token
+                    .getString(CoreAnnotations.OriginalTextAnnotation.class);
+                TextEvent event = new TextEvent(tokenStr, "e" + eventi, sid,
+                    wordi);
+                event.addEiid("ei" + eventi);
+ 
+               // Set the event attributes.
+                RVFDatum<String, String> datum = wordToDatum(sent, tree,
+                    alldeps.get(sid), wordi);
+                // System.out.println("datum: " + datum);
+                // System.out.println("\taspect: " +
+                // aspectClassifier.classOf(datum));
+                event.setTense(
+                    TextEvent.Tense.valueOf(tenseClassifier.classOf(datum)));
+                event.setAspect(TextEvent.Aspect
+                    .valueOf(aspectClassifier.classOf(datum)));
+                event.setTheClass(
+                    TextEvent.Class.valueOf(classClassifier.classOf(datum)));
+
+                newevents.add(event);
+                // System.out.println("Created event: " + event);
+                eventi++;
+              }
             }
+            wordi++;
           }
-          // Add the new events to this .info file.
-          if (newevents.size() > 0)
-            doc.addEvents(sid, newevents);
-          sid++;
         }
+        // Add the new events to this .info file.
+        if (newevents.size() > 0)
+          doc.addEvents(sid, newevents);
+        sid++;
       }
     }
   }
